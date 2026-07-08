@@ -23,12 +23,43 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
-      - name: Run tests
+      - name: Debug Python and dependency versions
         shell: pwsh
         env:
           PYTHONPATH: src
         run: |
-          python -m pytest
+          python -V
+          pip --version
+          pip list
+          python -c "import lightgbm; print('lightgbm:', lightgbm.__version__)"
+          python -c "import numpy; print('numpy:', numpy.__version__)"
+          python -c "import lief; print('lief:', lief.__version__)"
+          python -c "import watchdog; print('watchdog ok')"
+
+      - name: Debug model package on Windows
+        shell: pwsh
+        env:
+          PYTHONPATH: src
+        run: |
+          python -c "from pathlib import Path; p=Path('models/lightgbm_pe_v1/model.txt'); print('model exists:', p.exists()); print('model size:', p.stat().st_size if p.exists() else 'missing')"
+          python -c "from pathlib import Path; print('metadata exists:', Path('models/lightgbm_pe_v1/metadata.json').exists())"
+          python -c "from pathlib import Path; print('thresholds exists:', Path('models/lightgbm_pe_v1/thresholds.json').exists())"
+          python -c "from pathlib import Path; print('feature_config exists:', Path('models/lightgbm_pe_v1/feature_config.json').exists())"
+          python -c "from anti_pe_scanner.model_loader import LightGBMModelPackage; p=LightGBMModelPackage('models/lightgbm_pe_v1'); print('loading model package...'); p.load(); print('model package loaded ok')"
+
+      - name: Run model loading tests first
+        shell: pwsh
+        env:
+          PYTHONPATH: src
+        run: |
+          python -m pytest tests/test_model_loading.py -vv -s --maxfail=1 --tb=long
+
+      - name: Run all tests
+        shell: pwsh
+        env:
+          PYTHONPATH: src
+        run: |
+          python -m pytest -vv -s --maxfail=1 --tb=short
 
       - name: Build Windows executable
         shell: pwsh
