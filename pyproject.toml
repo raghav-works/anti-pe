@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "anti-pe-lightgbm-agent-scanner"
+version = "0.1.0"
+description = "LightGBM-only Agent-side PE malware scanner."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "lightgbm",
+  "numpy",
+  "lief",
+  "watchdog",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest",
+  "pyinstaller",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+

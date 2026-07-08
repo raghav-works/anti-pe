@@ -1,0 +1,9 @@
+{
+  "scan_enabled": true,
+  "mode": "alert_only",
+  "alert_threshold": 0.6242529630641415,
+  "block_threshold": 0.9385114343804422,
+  "max_file_size_mb": 100,
+  "quarantine_enabled": false
+}
+

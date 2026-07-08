@@ -1,0 +1,8 @@
+{
+  "feature_dim": 2381,
+  "feature_version": "ember_feature_version_2",
+  "requires_valid_pe": true,
+  "extractor_source": "Anti_PE ((2))/features/extractor.py",
+  "warning": "The inference feature extractor must preserve the same 2381-feature order expected by the trained model."
+}
+

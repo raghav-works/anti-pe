@@ -1,0 +1,9 @@
+{
+  "alert_threshold": 0.6242529630641415,
+  "block_threshold": 0.9385114343804422,
+  "source": "Anti_PE ((2)) run 20260604_104958_both/lightgbm/thresholds.json",
+  "alert_source_key": "fpr_0_01",
+  "block_source_key": "fpr_0_001",
+  "notes": "Validation-tuned thresholds from previous POC."
+}
+

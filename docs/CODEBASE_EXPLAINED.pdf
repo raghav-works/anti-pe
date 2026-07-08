@@ -1,0 +1,1276 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+2 0 obj
+<< /Length 2726 >>
+stream
+BT
+54 738 Td
+/F1 9 Tf
+/F1 18 Tf
+(Anti-PE LightGBM Agent Scanner: Codebase Explanation) Tj
+0 -12 Td
+/F1 9 Tf
+() Tj
+0 -12 Td
+/F1 12 Tf
+(1. What This Project Is) Tj
+0 -12 Td
+/F1 9 Tf
+() Tj
+0 -12 Td
+(This codebase is an inference-only Windows PE malware scanner intended for Agent-side ) Tj
+0 -12 Td
+(integration.) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(It takes either a file path or a watched directory as scanner input. It does not send raw ) Tj
+0 -12 Td
+(files directly into the model. Instead, it validates that a file is a Windows PE file, ) Tj
+0 -12 Td
+(extracts the exact 2381 numerical PE features expected by the trained model, scores those ) Tj
+0 -12 Td
+(features with a pre-trained LightGBM model, applies policy thresholds, and emits a JSON event.) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(The project is deliberately narrow:) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(- LightGBM only) Tj
+0 -12 Td
+(- PE static-feature inference only) Tj
+0 -12 Td
+(- Single-file scan mode) Tj
+0 -12 Td
+(- Continuous directory watch mode) Tj
+0 -12 Td
+(- JSON output) Tj
+0 -12 Td
+(- No training) Tj
+0 -12 Td
+(- No XGBoost) Tj
+0 -12 Td
+(- No stacking or meta-classifier) Tj
+0 -12 Td
+(- No hard mining) Tj
+0 -12 Td
+(- No SHAP, plots, notebooks, or research artifacts) Tj
+0 -12 Td
+(- No EMBER dataset files) Tj
+0 -12 Td
+(- No malware samples) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+/F1 12 Tf
+(2. Mental Model) Tj
+0 -12 Td
+/F1 9 Tf
+() Tj
+0 -12 Td
+(The most important design boundary is this:) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(```text) Tj
+0 -12 Td
+(Scanner input: file path or watch directory) Tj
+0 -12 Td
+(Model input:   2381 numerical PE features) Tj
+0 -12 Td
+(Model output:  malware probability score) Tj
+0 -12 Td
+(Scanner output: JSON event) Tj
+0 -12 Td
+(```) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(The raw file is never the model input. The scanner is a pipeline that safely converts a file ) Tj
+0 -12 Td
+(path into a structured model-ready vector, then turns the model score into a policy decision.) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+/F1 12 Tf
+(3. High-Level Lifecycle) Tj
+0 -12 Td
+/F1 9 Tf
+() Tj
+0 -12 Td
+(For a single file, the lifecycle is:) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(```text) Tj
+0 -12 Td
+(1. CLI or caller passes a file path) Tj
+0 -12 Td
+(2. Scanner loads policy and model package) Tj
+0 -12 Td
+(3. Scanner checks whether scanning is enabled) Tj
+0 -12 Td
+(4. PE validator checks file existence, size, MZ header, PE header offset, and PE signature) Tj
+0 -12 Td
+(5. Non-PE or invalid files are skipped and returned as JSON) Tj
+0 -12 Td
+(6. Valid PE files go to feature extraction) Tj
+0 -12 Td
+(7. Feature extractor uses LIEF and Anti_PE \(\(2\)\)-derived EMBER-style feature logic) Tj
+0 -12 Td
+(8. Feature vector is validated as shape \(1, 2381\)) Tj
+0 -12 Td
+(9. LightGBM Booster scores the vector) Tj
+ET
+endstream
+endobj
+3 0 obj
+<< /Length 1903 >>
+stream
+BT
+54 738 Td
+/F1 9 Tf
+(10. Policy thresholds convert the score into allow/log/alert/block) Tj
+0 -12 Td
+(11. Event builder emits a JSON-serializable event) Tj
+0 -12 Td
+(```) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(For watch mode, the lifecycle is:) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(```text) Tj
+0 -12 Td
+(1. CLI starts a watchdog observer for a directory) Tj
+0 -12 Td
+(2. Created or modified file events are observed) Tj
+0 -12 Td
+(3. Watch helper waits until file size is stable) Tj
+0 -12 Td
+(4. Duplicate unchanged events are suppressed) Tj
+0 -12 Td
+(5. Each stable file path is sent to the same single-file scanner) Tj
+0 -12 Td
+(6. One JSON event is printed per scanned file) Tj
+0 -12 Td
+(7. Process keeps running until Ctrl+C) Tj
+0 -12 Td
+(```) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+/F1 12 Tf
+(4. Project Structure) Tj
+0 -12 Td
+/F1 9 Tf
+() Tj
+0 -12 Td
+(```text) Tj
+0 -12 Td
+(anti-pe-lightgbm-agent-scanner/) Tj
+0 -12 Td
+(  src/anti_pe_scanner/) Tj
+0 -12 Td
+(    errors.py) Tj
+0 -12 Td
+(    schemas.py) Tj
+0 -12 Td
+(    policy.py) Tj
+0 -12 Td
+(    verdict.py) Tj
+0 -12 Td
+(    utils.py) Tj
+0 -12 Td
+(    event_builder.py) Tj
+0 -12 Td
+(    model_loader.py) Tj
+0 -12 Td
+(    pe_validator.py) Tj
+0 -12 Td
+(    feature_extractor.py) Tj
+0 -12 Td
+(    scanner.py) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(  tools/) Tj
+0 -12 Td
+(    scan_file.py) Tj
+0 -12 Td
+(    watch_dir.py) Tj
+0 -12 Td
+(    build_exe.py) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(  models/lightgbm_pe_v1/) Tj
+0 -12 Td
+(    model.txt) Tj
+0 -12 Td
+(    metadata.json) Tj
+0 -12 Td
+(    thresholds.json) Tj
+0 -12 Td
+(    feature_config.json) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(  configs/) Tj
+0 -12 Td
+(    policy.json) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(  tests/) Tj
+0 -12 Td
+(    test_*.py) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(  docs/) Tj
+0 -12 Td
+(    HOW_TO_RUN.md) Tj
+0 -12 Td
+(    MODEL_DELIVERY.md) Tj
+0 -12 Td
+(    INTEGRATION_NOTES.md) Tj
+0 -12 Td
+(    EVENT_SCHEMA.md) Tj
+0 -12 Td
+(    CONTINUOUS_MODE.md) Tj
+ET
+endstream
+endobj
+4 0 obj
+<< /Length 1713 >>
+stream
+BT
+54 738 Td
+/F1 9 Tf
+(    HANDOVER_SUMMARY.md) Tj
+0 -12 Td
+(    CODEBASE_EXPLAINED.md) Tj
+0 -12 Td
+(    CODEBASE_EXPLAINED.pdf) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(  dist/) Tj
+0 -12 Td
+(    anti_pe_scanner) Tj
+0 -12 Td
+(    models/) Tj
+0 -12 Td
+(    configs/) Tj
+0 -12 Td
+(    docs/) Tj
+0 -12 Td
+(```) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+/F1 12 Tf
+(5. Core Runtime Modules) Tj
+0 -12 Td
+/F1 9 Tf
+() Tj
+0 -12 Td
+(`src/anti_pe_scanner/errors.py`) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(This file defines shared string constants for scan statuses, verdicts, and actions.) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(Scan statuses include:) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(- `success`) Tj
+0 -12 Td
+(- `policy_disabled`) Tj
+0 -12 Td
+(- `skipped_not_pe`) Tj
+0 -12 Td
+(- `skipped_too_large`) Tj
+0 -12 Td
+(- `file_not_found`) Tj
+0 -12 Td
+(- `read_error`) Tj
+0 -12 Td
+(- `parse_error`) Tj
+0 -12 Td
+(- `feature_error`) Tj
+0 -12 Td
+(- `model_error`) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(Verdicts include:) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(- `allow`) Tj
+0 -12 Td
+(- `log`) Tj
+0 -12 Td
+(- `alert`) Tj
+0 -12 Td
+(- `block`) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(Actions include:) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(- `none`) Tj
+0 -12 Td
+(- `block`) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(The scanner uses these constants so every module speaks the same status language and JSON ) Tj
+0 -12 Td
+(consumers can rely on stable values.) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(`src/anti_pe_scanner/schemas.py`) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(This file contains simple dataclasses used throughout the scanner:) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(- `PolicyConfig`) Tj
+0 -12 Td
+(- `FileInfo`) Tj
+0 -12 Td
+(- `ModelInfo`) Tj
+0 -12 Td
+(- `DecisionInfo`) Tj
+0 -12 Td
+(- `ScanError`) Tj
+0 -12 Td
+(- `ScanResult`) Tj
+0 -12 Td
+(- `ValidationResult`) Tj
+ET
+endstream
+endobj
+5 0 obj
+<< /Length 2180 >>
+stream
+BT
+54 738 Td
+/F1 9 Tf
+() Tj
+0 -12 Td
+(These dataclasses are intentionally JSON-friendly. They hold plain values such as strings, ) Tj
+0 -12 Td
+(numbers, booleans, dictionaries, and `None`.) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(The helper `to_jsonable\(\)` converts dataclasses and containers into plain Python structures ) Tj
+0 -12 Td
+(suitable for JSON serialization.) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(`src/anti_pe_scanner/policy.py`) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(This file owns policy loading, merging, and validation.) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(The default policy is:) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(```json) Tj
+0 -12 Td
+({) Tj
+0 -12 Td
+(  "scan_enabled": true,) Tj
+0 -12 Td
+(  "mode": "alert_only",) Tj
+0 -12 Td
+(  "alert_threshold": 0.6242529630641415,) Tj
+0 -12 Td
+(  "block_threshold": 0.9385114343804422,) Tj
+0 -12 Td
+(  "max_file_size_mb": 100,) Tj
+0 -12 Td
+(  "quarantine_enabled": false) Tj
+0 -12 Td
+(}) Tj
+0 -12 Td
+(```) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(Valid policy modes are:) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(- `log_only`) Tj
+0 -12 Td
+(- `alert_only`) Tj
+0 -12 Td
+(- `block_enabled`) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(Validation rules:) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(- thresholds must be between 0 and 1) Tj
+0 -12 Td
+(- alert threshold must be less than block threshold) Tj
+0 -12 Td
+(- max file size must be positive) Tj
+0 -12 Td
+(- unknown policy modes raise `ValueError`) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(The scanner merges the base policy, model package thresholds, and optional user override ) Tj
+0 -12 Td
+(policy.) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(`src/anti_pe_scanner/verdict.py`) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(This file turns a model score into a decision.) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(Decision rules:) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(- score below alert threshold: verdict `allow`, action `none`) Tj
+0 -12 Td
+(- score between alert and block thresholds:) Tj
+0 -12 Td
+(  - `log_only`: verdict `log`) Tj
+0 -12 Td
+(  - `alert_only`: verdict `alert`) Tj
+0 -12 Td
+(  - `block_enabled`: verdict `alert`) Tj
+0 -12 Td
+(- score above block threshold:) Tj
+0 -12 Td
+(  - `log_only`: verdict `log`) Tj
+0 -12 Td
+(  - `alert_only`: verdict `alert`) Tj
+0 -12 Td
+(  - `block_enabled`: verdict `block`, action `block`) Tj
+ET
+endstream
+endobj
+6 0 obj
+<< /Length 1959 >>
+stream
+BT
+54 738 Td
+/F1 9 Tf
+() Tj
+0 -12 Td
+(Important: scanner v1 only reports the action in JSON. It does not quarantine, delete, or ) Tj
+0 -12 Td
+(directly block files.) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(`src/anti_pe_scanner/utils.py`) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(This file contains small utility functions:) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(- `sha256_file\(path\)`) Tj
+0 -12 Td
+(- `utc_now_iso\(\)`) Tj
+0 -12 Td
+(- `safe_json_dumps\(data, pretty=False\)`) Tj
+0 -12 Td
+(- `file_size_bytes\(path\)`) Tj
+0 -12 Td
+(- `is_file_size_stable\(path, checks=2, interval_sec=0.5\)`) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(Watch mode uses `is_file_size_stable\(\)` so it does not scan files while they are still being ) Tj
+0 -12 Td
+(copied or written.) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(`src/anti_pe_scanner/event_builder.py`) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(This file builds the final JSON event.) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(Every event includes:) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(```json) Tj
+0 -12 Td
+({) Tj
+0 -12 Td
+(  "event_type": "ml_pe_scan",) Tj
+0 -12 Td
+(  "event_version": "1.0",) Tj
+0 -12 Td
+(  "timestamp": "...",) Tj
+0 -12 Td
+(  "scan_status": "...",) Tj
+0 -12 Td
+(  "file": {},) Tj
+0 -12 Td
+(  "model": {},) Tj
+0 -12 Td
+(  "decision": {},) Tj
+0 -12 Td
+(  "error": null) Tj
+0 -12 Td
+(}) Tj
+0 -12 Td
+(```) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(If host context is passed by an Agent integration, it is included under `host_context`.) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(`src/anti_pe_scanner/model_loader.py`) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(This file loads the LightGBM model package.) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(It requires:) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(- `model.txt`) Tj
+0 -12 Td
+(- `metadata.json`) Tj
+0 -12 Td
+(- `thresholds.json`) Tj
+0 -12 Td
+(- `feature_config.json`) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(It validates:) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(- model type is `lightgbm`) Tj
+0 -12 Td
+(- feature dimension is `2381`) Tj
+0 -12 Td
+(- thresholds are valid) Tj
+0 -12 Td
+(- alert threshold is less than block threshold) Tj
+ET
+endstream
+endobj
+7 0 obj
+<< /Length 2026 >>
+stream
+BT
+54 738 Td
+/F1 9 Tf
+() Tj
+0 -12 Td
+(It loads the trained model with:) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(```python) Tj
+0 -12 Td
+(lightgbm.Booster\(model_file=str\(model_path\)\)) Tj
+0 -12 Td
+(```) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(No training is performed. The model is already trained.) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(`predict_score\(features\)` accepts either:) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(- shape `\(2381,\)`) Tj
+0 -12 Td
+(- shape `\(1, 2381\)`) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(It returns a Python `float`.) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(`src/anti_pe_scanner/pe_validator.py`) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(This file decides whether a file is safe and valid enough to send to feature extraction.) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(It checks:) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(- file exists) Tj
+0 -12 Td
+(- path is a regular file) Tj
+0 -12 Td
+(- file is readable) Tj
+0 -12 Td
+(- file is non-empty) Tj
+0 -12 Td
+(- file size does not exceed policy limit) Tj
+0 -12 Td
+(- file starts with `MZ`) Tj
+0 -12 Td
+(- DOS header contains a PE header offset at `0x3C`) Tj
+0 -12 Td
+(- PE signature at that offset is `PE\\0\\0`) Tj
+0 -12 Td
+(- optional LIEF parse if LIEF is installed) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(Non-PE files never reach feature extraction or model inference.) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(`src/anti_pe_scanner/feature_extractor.py`) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(This file bridges a valid PE file to the model input.) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(It adapts the feature extraction logic from Anti_PE \(\(2\)\) and preserves the feature group ) Tj
+0 -12 Td
+(order expected by the trained model.) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(Feature groups:) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(```text) Tj
+0 -12 Td
+(ByteHistogram[0:256]) Tj
+0 -12 Td
+(ByteEntropyHistogram[256:512]) Tj
+0 -12 Td
+(StringFeatures[512:616]) Tj
+0 -12 Td
+(GeneralFileInfo[616:626]) Tj
+0 -12 Td
+(HeaderFileInfo[626:688]) Tj
+0 -12 Td
+(SectionInfo[688:943]) Tj
+0 -12 Td
+(ImportsInfo[943:2223]) Tj
+0 -12 Td
+(ExportsInfo[2223:2351]) Tj
+0 -12 Td
+(DataDirectories[2351:2381]) Tj
+0 -12 Td
+(```) Tj
+0 -12 Td
+() Tj
+ET
+endstream
+endobj
+8 0 obj
+<< /Length 1961 >>
+stream
+BT
+54 738 Td
+/F1 9 Tf
+(Output:) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(- NumPy array) Tj
+0 -12 Td
+(- shape `\(1, 2381\)`) Tj
+0 -12 Td
+(- `float32`) Tj
+0 -12 Td
+(- no NaN or infinite values) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(If extraction fails, it raises `FeatureExtractionError`. It does not create fake feature ) Tj
+0 -12 Td
+(vectors.) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(`src/anti_pe_scanner/scanner.py`) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(This is the single-file orchestration layer.) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(`PEMalwareScanner` does the full scan flow:) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(```text) Tj
+0 -12 Td
+(policy -> validation -> feature extraction -> model score -> verdict -> JSON event) Tj
+0 -12 Td
+(```) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(It catches bad inputs and runtime failures and returns structured JSON events instead of ) Tj
+0 -12 Td
+(crashing.) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(It does not call model inference for invalid or non-PE files.) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+/F1 12 Tf
+(6. Tooling Modules) Tj
+0 -12 Td
+/F1 9 Tf
+() Tj
+0 -12 Td
+(`tools/scan_file.py`) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(This is the CLI entry point.) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(Single-file mode:) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(```bash) Tj
+0 -12 Td
+(PYTHONPATH=src .venv/bin/python tools/scan_file.py --file README.md --model-package ) Tj
+0 -12 Td
+(models/lightgbm_pe_v1 --pretty) Tj
+0 -12 Td
+(```) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(Watch mode:) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(```bash) Tj
+0 -12 Td
+(PYTHONPATH=src .venv/bin/python tools/scan_file.py --watch-dir ./samples --model-package ) Tj
+0 -12 Td
+(models/lightgbm_pe_v1 --recursive --pretty) Tj
+0 -12 Td
+(```) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(The same entry point is used by PyInstaller.) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(`tools/watch_dir.py`) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(This file implements continuous watch mode with `watchdog`.) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(It:) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(- monitors created and modified files) Tj
+0 -12 Td
+(- waits for file size to stabilize) Tj
+ET
+endstream
+endobj
+9 0 obj
+<< /Length 2014 >>
+stream
+BT
+54 738 Td
+/F1 9 Tf
+(- avoids duplicate scans for unchanged files) Tj
+0 -12 Td
+(- prints one JSON event per scanned file) Tj
+0 -12 Td
+(- keeps running after per-file errors) Tj
+0 -12 Td
+(- stops cleanly with Ctrl+C) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(Watch mode is a v1 operational adapter. Final Agent integration may call the scanner per Agent) Tj
+0 -12 Td
+( file event instead.) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(`tools/build_exe.py`) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(This file builds the PyInstaller package.) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(It uses `tools/scan_file.py` as the entry point and keeps the model package beside the ) Tj
+0 -12 Td
+(executable.) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(The staged layout is:) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(```text) Tj
+0 -12 Td
+(dist/) Tj
+0 -12 Td
+(  anti_pe_scanner or anti_pe_scanner.exe) Tj
+0 -12 Td
+(  models/lightgbm_pe_v1/) Tj
+0 -12 Td
+(  configs/policy.json) Tj
+0 -12 Td
+(  docs/) Tj
+0 -12 Td
+(```) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(On Linux, PyInstaller creates `anti_pe_scanner`. On Windows, build in a Windows environment to) Tj
+0 -12 Td
+( create `anti_pe_scanner.exe`.) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+/F1 12 Tf
+(7. Model Package) Tj
+0 -12 Td
+/F1 9 Tf
+() Tj
+0 -12 Td
+(Location:) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(```text) Tj
+0 -12 Td
+(models/lightgbm_pe_v1/) Tj
+0 -12 Td
+(```) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(Files:) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(- `model.txt`: trained LightGBM model) Tj
+0 -12 Td
+(- `metadata.json`: model identity and feature metadata) Tj
+0 -12 Td
+(- `thresholds.json`: alert and block thresholds) Tj
+0 -12 Td
+(- `feature_config.json`: feature dimension and extractor warning) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(Important values:) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(```text) Tj
+0 -12 Td
+(model_name: lightgbm_pe_malware_detector) Tj
+0 -12 Td
+(model_version: v1) Tj
+0 -12 Td
+(model_type: lightgbm) Tj
+0 -12 Td
+(feature_dim: 2381) Tj
+0 -12 Td
+(alert_threshold: 0.6242529630641415) Tj
+0 -12 Td
+(block_threshold: 0.9385114343804422) Tj
+0 -12 Td
+(```) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+/F1 12 Tf
+(8. Configuration) Tj
+ET
+endstream
+endobj
+10 0 obj
+<< /Length 1893 >>
+stream
+BT
+54 738 Td
+/F1 9 Tf
+() Tj
+0 -12 Td
+(`configs/policy.json` is the default runtime policy.) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(It controls:) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(- whether scanning is enabled) Tj
+0 -12 Td
+(- mode: `log_only`, `alert_only`, or `block_enabled`) Tj
+0 -12 Td
+(- alert threshold) Tj
+0 -12 Td
+(- block threshold) Tj
+0 -12 Td
+(- maximum file size) Tj
+0 -12 Td
+(- quarantine flag) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(The current scanner does not perform quarantine. The flag is present for policy compatibility ) Tj
+0 -12 Td
+(and future Agent-side enforcement.) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+/F1 12 Tf
+(9. Tests) Tj
+0 -12 Td
+/F1 9 Tf
+() Tj
+0 -12 Td
+(The test suite covers:) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(- policy validation) Tj
+0 -12 Td
+(- verdict mapping) Tj
+0 -12 Td
+(- event JSON shape) Tj
+0 -12 Td
+(- model loading) Tj
+0 -12 Td
+(- PE validation) Tj
+0 -12 Td
+(- feature-vector validation) Tj
+0 -12 Td
+(- scanner behavior on missing/non-PE/fake/real benign PE files) Tj
+0 -12 Td
+(- CLI behavior) Tj
+0 -12 Td
+(- watch-mode helper behavior) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(Current validation result:) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(```text) Tj
+0 -12 Td
+(45 passed) Tj
+0 -12 Td
+(```) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+/F1 12 Tf
+(10. Packaging and Distribution) Tj
+0 -12 Td
+/F1 9 Tf
+() Tj
+0 -12 Td
+(Build on Linux/source:) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(```bash) Tj
+0 -12 Td
+(PYTHONPATH=src .venv/bin/python tools/build_exe.py) Tj
+0 -12 Td
+(```) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(Build Windows executable on Windows:) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(```powershell) Tj
+0 -12 Td
+(.venv\\Scripts\\python.exe tools\\build_exe.py) Tj
+0 -12 Td
+(```) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(The model package must stay beside the executable.) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(Do not move only the binary by itself. Move the whole `dist/` layout.) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+/F1 12 Tf
+(11. What Happens for Common Inputs) Tj
+0 -12 Td
+/F1 9 Tf
+() Tj
+ET
+endstream
+endobj
+11 0 obj
+<< /Length 2109 >>
+stream
+BT
+54 738 Td
+/F1 9 Tf
+(Missing file) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(Result:) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(```text) Tj
+0 -12 Td
+(scan_status = file_not_found) Tj
+0 -12 Td
+(error != null) Tj
+0 -12 Td
+(```) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(Non-PE text file) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(Result:) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(```text) Tj
+0 -12 Td
+(scan_status = skipped_not_pe) Tj
+0 -12 Td
+(file.type = non_pe) Tj
+0 -12 Td
+(model.score = null) Tj
+0 -12 Td
+(decision = null) Tj
+0 -12 Td
+(```) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(Valid benign PE) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(Result:) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(```text) Tj
+0 -12 Td
+(scan_status = success) Tj
+0 -12 Td
+(file.type = windows_pe) Tj
+0 -12 Td
+(model.score = number between 0 and 1) Tj
+0 -12 Td
+(decision.verdict = allow/log/alert/block) Tj
+0 -12 Td
+(error = null) Tj
+0 -12 Td
+(```) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+/F1 12 Tf
+(12. Known Limitations) Tj
+0 -12 Td
+/F1 9 Tf
+() Tj
+0 -12 Td
+(- Windows `.exe` must be built on Windows or in a Windows build environment.) Tj
+0 -12 Td
+(- Current real-PE validation used one benign PE sample.) Tj
+0 -12 Td
+(- Golden-vector parity testing against the old Anti_PE \(\(2\)\) extractor is recommended before ) Tj
+0 -12 Td
+(production deployment.) Tj
+0 -12 Td
+(- Scanner v1 reports block actions in JSON but does not directly quarantine, delete, or block ) Tj
+0 -12 Td
+(files.) Tj
+0 -12 Td
+(- Final Agent integration may replace folder watching with Agent-provided file events.) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+/F1 12 Tf
+(13. Recommended Agent Integration Path) Tj
+0 -12 Td
+/F1 9 Tf
+() Tj
+0 -12 Td
+(Recommended handoff sequence:) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(1. Agent receives or observes a file path.) Tj
+0 -12 Td
+(2. Agent calls scanner module or executable with that path.) Tj
+0 -12 Td
+(3. Scanner returns JSON.) Tj
+0 -12 Td
+(4. Agent records telemetry.) Tj
+0 -12 Td
+(5. Agent decides whether to enforce action based on policy and `decision.action`.) Tj
+0 -12 Td
+(6. Agent handles any quarantine/delete/block behavior outside scanner v1.) Tj
+0 -12 Td
+() Tj
+0 -12 Td
+(This keeps the ML scanner small, inspectable, and focused on inference.) Tj
+ET
+endstream
+endobj
+12 0 obj
+<< /Type /Page /Parent 22 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 2 0 R >>
+endobj
+13 0 obj
+<< /Type /Page /Parent 22 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 3 0 R >>
+endobj
+14 0 obj
+<< /Type /Page /Parent 22 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 4 0 R >>
+endobj
+15 0 obj
+<< /Type /Page /Parent 22 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 5 0 R >>
+endobj
+16 0 obj
+<< /Type /Page /Parent 22 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 6 0 R >>
+endobj
+17 0 obj
+<< /Type /Page /Parent 22 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 7 0 R >>
+endobj
+18 0 obj
+<< /Type /Page /Parent 22 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 8 0 R >>
+endobj
+19 0 obj
+<< /Type /Page /Parent 22 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 9 0 R >>
+endobj
+20 0 obj
+<< /Type /Page /Parent 22 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 10 0 R >>
+endobj
+21 0 obj
+<< /Type /Page /Parent 22 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 11 0 R >>
+endobj
+22 0 obj
+<< /Type /Pages /Kids [12 0 R 13 0 R 14 0 R 15 0 R 16 0 R 17 0 R 18 0 R 19 0 R 20 0 R 21 0 R] /Count 10 >>
+endobj
+23 0 obj
+<< /Type /Catalog /Pages 22 0 R >>
+endobj
+xref
+0 24
+0000000000 65535 f 
+0000000009 00000 n 
+0000000079 00000 n 
+0000002857 00000 n 
+0000004812 00000 n 
+0000006577 00000 n 
+0000008809 00000 n 
+0000010820 00000 n 
+0000012898 00000 n 
+0000014911 00000 n 
+0000016977 00000 n 
+0000018923 00000 n 
+0000021085 00000 n 
+0000021213 00000 n 
+0000021341 00000 n 
+0000021469 00000 n 
+0000021597 00000 n 
+0000021725 00000 n 
+0000021853 00000 n 
+0000021981 00000 n 
+0000022109 00000 n 
+0000022238 00000 n 
+0000022367 00000 n 
+0000022490 00000 n 
+trailer
+<< /Size 24 /Root 23 0 R >>
+startxref
+22541
+%%EOF
