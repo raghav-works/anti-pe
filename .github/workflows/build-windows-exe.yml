@@ -3,9 +3,14 @@ name: Build Windows EXE
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build-windows-exe:
+    name: Build anti_pe_scanner.exe
     runs-on: windows-latest
+    timeout-minutes: 40
 
     steps:
       - name: Checkout repository
@@ -14,72 +19,147 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.11"
+
+      - name: Show Python and repository info
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          python --version
+          python -m pip --version
+
+          Write-Host "Repository root:"
+          Get-Location
+
+          Write-Host "Top-level files:"
+          Get-ChildItem
+
+      - name: Verify required project files
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $requiredFiles = @(
+            "requirements.txt",
+            "tools\scan_file.py",
+            "tools\build_exe.py",
+            "configs\policy.json",
+            "models\lightgbm_pe_v1\model.txt",
+            "models\lightgbm_pe_v1\metadata.json",
+            "models\lightgbm_pe_v1\thresholds.json",
+            "models\lightgbm_pe_v1\feature_config.json"
+          )
+
+          foreach ($file in $requiredFiles) {
+            if (!(Test-Path $file)) {
+              throw "Required file is missing: $file"
+            }
+            else {
+              Write-Host "Found: $file"
+            }
+          }
 
       - name: Install dependencies
         shell: pwsh
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pyinstaller
+          $ErrorActionPreference = "Stop"
 
-      - name: Debug Python and dependency versions
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install -r requirements.txt
+          python -m pip install pyinstaller pytest
+
+      - name: Verify Python imports
         shell: pwsh
         env:
           PYTHONPATH: src
         run: |
-          python -V
-          pip --version
-          pip list
-          python -c "import lightgbm; print('lightgbm:', lightgbm.__version__)"
-          python -c "import numpy; print('numpy:', numpy.__version__)"
-          python -c "import lief; print('lief:', lief.__version__)"
-          python -c "import watchdog; print('watchdog ok')"
+          $ErrorActionPreference = "Stop"
 
-      - name: Debug model package on Windows
+          python -c "import numpy; print('numpy OK')"
+          python -c "import lightgbm; print('lightgbm OK')"
+          python -c "import lief; print('lief OK')"
+          python -c "import watchdog; print('watchdog OK')"
+          python -c "import PyInstaller; print('PyInstaller OK')"
+          python -c "from anti_pe_scanner.model_loader import LightGBMModelPackage; p = LightGBMModelPackage('models/lightgbm_pe_v1'); p.load(); print('model package OK')"
+
+      - name: Run tests
         shell: pwsh
         env:
           PYTHONPATH: src
         run: |
-          python -c "from pathlib import Path; p=Path('models/lightgbm_pe_v1/model.txt'); print('model exists:', p.exists()); print('model size:', p.stat().st_size if p.exists() else 'missing')"
-          python -c "from pathlib import Path; print('metadata exists:', Path('models/lightgbm_pe_v1/metadata.json').exists())"
-          python -c "from pathlib import Path; print('thresholds exists:', Path('models/lightgbm_pe_v1/thresholds.json').exists())"
-          python -c "from pathlib import Path; print('feature_config exists:', Path('models/lightgbm_pe_v1/feature_config.json').exists())"
-          python -c "from anti_pe_scanner.model_loader import LightGBMModelPackage; p=LightGBMModelPackage('models/lightgbm_pe_v1'); print('loading model package...'); p.load(); print('model package loaded ok')"
+          $ErrorActionPreference = "Stop"
 
-      - name: Run model loading tests first
-        shell: pwsh
-        env:
-          PYTHONPATH: src
-        run: |
-          python -m pytest tests/test_model_loading.py -vv -s --maxfail=1 --tb=long
+          python -m pytest -q
 
-      - name: Run all tests
+      - name: Clean old build outputs
         shell: pwsh
-        env:
-          PYTHONPATH: src
         run: |
-          python -m pytest -vv -s --maxfail=1 --tb=short
+          $ErrorActionPreference = "Stop"
+
+          if (Test-Path build) {
+            Remove-Item build -Recurse -Force
+          }
+
+          if (Test-Path dist) {
+            Remove-Item dist -Recurse -Force
+          }
+
+          if (Test-Path anti_pe_scanner.spec) {
+            Remove-Item anti_pe_scanner.spec -Force
+          }
 
       - name: Build Windows executable
         shell: pwsh
         env:
           PYTHONPATH: src
         run: |
+          $ErrorActionPreference = "Stop"
+
           python tools\build_exe.py
 
-      - name: Show dist tree
+      - name: Verify EXE and handover package
         shell: pwsh
         run: |
+          $ErrorActionPreference = "Stop"
+
+          if (!(Test-Path "dist\anti_pe_scanner.exe")) {
+            throw "Windows EXE was not created: dist\anti_pe_scanner.exe"
+          }
+
+          if (!(Test-Path "dist\models\lightgbm_pe_v1\model.txt")) {
+            throw "Model file was not copied into dist\models\lightgbm_pe_v1"
+          }
+
+          if (!(Test-Path "dist\configs\policy.json")) {
+            throw "Policy file was not copied into dist\configs"
+          }
+
+          Write-Host "Final dist tree:"
           tree dist /F
 
       - name: Smoke test EXE on non-PE file
         shell: pwsh
         run: |
-          dist\anti_pe_scanner.exe --file README.md --pretty
+          $ErrorActionPreference = "Stop"
+
+          "hello this is not a PE file" | Out-File -Encoding utf8 smoke_test.txt
+
+          $output = .\dist\anti_pe_scanner.exe --file smoke_test.txt
+          Write-Host $output
+
+          $json = $output | ConvertFrom-Json
+
+          if ($json.scan_status -ne "skipped_not_pe") {
+            throw "Smoke test failed. Expected scan_status skipped_not_pe but got $($json.scan_status)"
+          }
+
+          Write-Host "Smoke test passed."
 
       - name: Upload Windows handover package
         uses: actions/upload-artifact@v4
         with:
           name: anti_pe_scanner_windows_handover
           path: dist/
+          if-no-files-found: error
+          retention-days: 14
