@@ -71,20 +71,23 @@ def test_feature_extraction_error_returns_feature_error(scanner, tmp_path, monke
     fake_pe = tmp_path / "sample.exe"
     fake_pe.write_bytes(b"MZ" + b"\x00" * 128)
 
-    def fake_validate(file_path, max_file_size_mb=100):
-        return ValidationResult(
-            is_valid_pe=True,
-            scan_status=STATUS_SUCCESS,
-            file_path=str(file_path),
-            file_name="sample.exe",
-            size_bytes=fake_pe.stat().st_size,
-        )
+    class FakePrepared:
+        path = fake_pe
+        name = "sample.exe"
+        size_bytes = fake_pe.stat().st_size
+        raw_bytes = fake_pe.read_bytes()
+        sha256 = "abc"
+        lief_binary = object()
+        timings_ms = {}
 
-    def fail_extract(_file_path):
+    def fake_prepare(file_path, max_file_size_mb=100):
+        return FakePrepared()
+
+    def fail_extract(_prepared, _timings):
         raise FeatureExtractionError("synthetic extraction failure")
 
-    monkeypatch.setattr(scanner_module, "validate_pe_file", fake_validate)
-    monkeypatch.setattr(scanner_module, "extract_pe_features", fail_extract)
+    monkeypatch.setattr(scanner_module, "prepare_pe_file", fake_prepare)
+    monkeypatch.setattr(scanner.feature_extractor, "extract_prepared", fail_extract)
 
     event = scanner.scan_file(fake_pe)
 

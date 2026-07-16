@@ -10,6 +10,7 @@ Operating modes:
 
 - single-file mode
 - continuous watch mode
+- persistent JSONL server mode (preferred for Agent integration)
 
 Final scanner output will be JSON.
 
@@ -37,6 +38,19 @@ Executable continuous watch mode:
 dist/anti_pe_scanner --watch-dir "C:\Users\Test\Downloads"
 ```
 
+Persistent worker mode:
+
+```bash
+dist/onedir/anti_pe_scanner/anti_pe_scanner --server --cache-size 64
+```
+
+Send one compact JSON object per line on stdin. The worker returns one JSON
+object per line on stdout and sends diagnostics only to stderr:
+
+```json
+{"request_id":"42","file_path":"C:\\path\\sample.exe","host_context":{},"sha256":null}
+```
+
 On Windows, the executable is expected to be `anti_pe_scanner.exe`. Build on Windows or in a Windows build environment to produce the Windows `.exe`.
 
 The model package must stay beside the executable under `dist/models/lightgbm_pe_v1/`. Training data is not included.
@@ -51,7 +65,7 @@ Scanner v1 reports `block` decisions in JSON when policy mode is `block_enabled`
 Build packaged scanner:
 
 ```bash
-PYTHONPATH=src .venv/bin/python tools/build_exe.py
+PYTHONPATH=src .venv/bin/python tools/build_exe.py --variant both
 ```
 
 Build Windows executable on Windows:

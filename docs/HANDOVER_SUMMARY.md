@@ -138,3 +138,29 @@ The model package must stay beside the executable.
 - Decide whether Agent integration will call the module, invoke the executable per file event, or use folder watch mode.
 - Wire JSON `decision.action` into Agent enforcement policy if blocking/quarantine is desired.
 - Add operational logging/telemetry conventions requested by the Agent team.
+# Latency optimization handover
+
+The scanner now supports a persistent JSONL worker and a single-read,
+single-hash, single-LIEF-parse pipeline. The default event contract, model,
+feature order, feature count, and thresholds are unchanged.
+
+Build both Windows packages:
+
+```powershell
+.venv\Scripts\python.exe tools\build_exe.py --variant both
+```
+
+Outputs:
+
+```text
+dist/onedir/anti_pe_scanner/   # preferred Agent integration package
+dist/onefile/                  # portable/manual package
+```
+
+The model, configs, and docs remain beside each runtime. Use the onedir build
+with `--server` for endpoint integration. The onefile executable must unpack
+itself at cold start and is retained for portability, not lowest startup
+latency.
+
+Linux measurements and remaining Windows/Agent validation are documented in
+`artifacts/latency/LATENCY_COMPARISON.md`.

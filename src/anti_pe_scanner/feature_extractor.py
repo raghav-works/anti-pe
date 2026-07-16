@@ -25,12 +25,29 @@ import hashlib
 import math
 import re
 from pathlib import Path
+from time import perf_counter_ns
 from typing import Any
 
 import numpy as np
+from anti_pe_scanner.prepared_pe import PreparedPEFile, prepare_pe_file
 
 EMBER_FEATURE_DIM = 2381
 _MIN_STRING_LEN = 5
+_PRINTABLE_STRINGS_RE = re.compile(rb"[ -~]{5,}")
+_URL_RE = re.compile(rb"https?://")
+_REGISTRY_RE = re.compile(rb"HKEY_|SOFTWARE\\|SYSTEM\\")
+_WINDOWS_PATH_RE = re.compile(rb"[Cc]:\\|[Ss]ystem32")
+_MZ_RE = re.compile(rb"MZ")
+_KNOWN_SECTION_INDEX = {
+    name: index
+    for index, name in enumerate(
+        [
+            ".text", ".data", ".rdata", ".rsrc", ".reloc", ".bss",
+            ".idata", ".edata", ".pdata", ".xdata", ".tls", ".sxdata",
+            "UPX0", "UPX1", "UPX2", ".themida", ".vmp0", ".vmp1",
+        ]
+    )
+}
 
 
 class FeatureExtractionError(ValueError):
@@ -51,18 +68,15 @@ class PEFeatureExtractor:
     """LIEF-based EMBER-compatible PE feature extractor for inference only."""
 
     def extract_from_file(self, file_path: str | Path) -> np.ndarray:
-        path = Path(file_path)
-        if not path.exists():
-            raise FileNotFoundError(f"File not found: {path}")
-        if not path.is_file():
-            raise FeatureExtractionError(f"Path is not a file: {path}")
-
         try:
-            raw_bytes = path.read_bytes()
-        except OSError as exc:
-            raise FeatureExtractionError(f"Cannot read file {path}: {exc}") from exc
-
-        return self.extract_from_bytes(raw_bytes, str(path))
+            prepared = prepare_pe_file(file_path)
+        except FileNotFoundError:
+            raise
+        except Exception as exc:
+            if getattr(exc, "scan_status", None) == "file_not_found":
+                raise FileNotFoundError(f"File not found: {file_path}") from exc
+            raise FeatureExtractionError(str(exc)) from exc
+        return self.extract_prepared(prepared)
 
     def extract_from_bytes(self, raw_bytes: bytes, source_name: str = "<bytes>") -> np.ndarray:
         if not raw_bytes:
@@ -81,7 +95,7 @@ class PEFeatureExtractor:
             ) from exc
 
         try:
-            lief_binary = lief.PE.parse(list(raw_bytes))
+            lief_binary = lief.PE.parse(raw_bytes)
         except Exception as exc:
             raise FeatureExtractionError(f"LIEF failed to parse PE file {source_name}: {exc}") from exc
 
@@ -89,6 +103,16 @@ class PEFeatureExtractor:
             raise FeatureExtractionError(f"LIEF failed to parse PE file {source_name}")
 
         features = _PEFeatureExtractor(raw_bytes, lief_binary).feature_vector()
+        return _validate_feature_vector(features)
+
+    def extract_prepared(
+        self,
+        prepared: PreparedPEFile,
+        timings_ms: dict[str, float] | None = None,
+    ) -> np.ndarray:
+        features = _PEFeatureExtractor(
+            prepared.raw_bytes, prepared.lief_binary, timings_ms=timings_ms
+        ).feature_vector()
         return _validate_feature_vector(features)
 
 
@@ -113,22 +137,36 @@ def _validate_feature_vector(features: Any) -> np.ndarray:
 class _PEFeatureExtractor:
     """Internal extractor modelled after Anti_PE ((2)) EMBER v2 feature order."""
 
-    def __init__(self, raw_bytes: bytes, lief_binary: Any) -> None:
+    def __init__(
+        self,
+        raw_bytes: bytes,
+        lief_binary: Any,
+        timings_ms: dict[str, float] | None = None,
+    ) -> None:
         self.raw_bytes = raw_bytes
         self.lief = lief_binary
+        self.timings_ms = timings_ms
+        self.sections = list(getattr(lief_binary, "sections", []))
+        self.imports = list(getattr(lief_binary, "imports", []))
 
     def feature_vector(self) -> np.ndarray:
-        parts = [
-            self._byte_histogram(),
-            self._byte_entropy_histogram(),
-            self._string_features(),
-            self._general_file_info(),
-            self._header_file_info(),
-            self._section_info(),
-            self._imports_info(),
-            self._exports_info(),
-            self._data_directory_info(),
+        groups = [
+            ("byte_histogram_ms", self._byte_histogram),
+            ("byte_entropy_histogram_ms", self._byte_entropy_histogram),
+            ("string_features_ms", self._string_features),
+            ("general_features_ms", self._general_file_info),
+            ("header_features_ms", self._header_file_info),
+            ("section_features_ms", self._section_info),
+            ("import_features_ms", self._imports_info),
+            ("export_features_ms", self._exports_info),
+            ("data_directory_features_ms", self._data_directory_info),
         ]
+        parts = []
+        for timing_name, function in groups:
+            start = perf_counter_ns()
+            parts.append(function())
+            if self.timings_ms is not None:
+                self.timings_ms[timing_name] = (perf_counter_ns() - start) / 1_000_000.0
         vec = np.concatenate(parts)
         if len(vec) < EMBER_FEATURE_DIM:
             vec = np.concatenate([vec, np.zeros(EMBER_FEATURE_DIM - len(vec), dtype=np.float32)])
@@ -137,7 +175,12 @@ class _PEFeatureExtractor:
         return vec.astype(np.float32)
 
     def _byte_histogram(self) -> np.ndarray:
-        counts = np.bincount(np.frombuffer(self.raw_bytes, dtype=np.uint8), minlength=256)
+        counts = np.zeros(256, dtype=np.int64)
+        data = np.frombuffer(self.raw_bytes, dtype=np.uint8)
+        # np.bincount may promote the entire input to platform integers
+        # internally. Chunking preserves exact counts while bounding peak RAM.
+        for start in range(0, len(data), 1024 * 1024):
+            counts += np.bincount(data[start : start + 1024 * 1024], minlength=256)
         total = max(counts.sum(), 1)
         return (counts / total).astype(np.float32)
 
@@ -149,15 +192,30 @@ class _PEFeatureExtractor:
         data = np.frombuffer(self.raw_bytes, dtype=np.uint8)
         for start in range(0, max(len(data) - window_size + 1, 1), step):
             window = data[start: start + window_size]
-            entropy_bin = min(int(_entropy(window) / 8.0 * 16), 15)
-            byte_hist, _ = np.histogram(window, bins=16, range=(0, 256))
-            hist[entropy_bin] += byte_hist / max(byte_hist.sum(), 1)
+            byte_counts = np.bincount(window, minlength=256)
+            nonzero = byte_counts[byte_counts > 0]
+            probabilities = nonzero / len(window)
+            entropy = float(-np.sum(probabilities * np.log2(probabilities)))
+            entropy_bin = min(int(entropy / 8.0 * 16), 15)
+            coarse_histogram = byte_counts.reshape(16, 16).sum(axis=1)
+            hist[entropy_bin] += coarse_histogram / max(coarse_histogram.sum(), 1)
 
         return (hist / max(hist.sum(), 1)).flatten().astype(np.float32)
 
     def _string_features(self) -> np.ndarray:
-        strings = _extract_printable_strings(self.raw_bytes, _MIN_STRING_LEN)
-        lengths = [len(s) for s in strings]
+        lengths: list[int] = []
+        url_count = registry_count = path_count = mz_count = 0
+        for match in _PRINTABLE_STRINGS_RE.finditer(self.raw_bytes):
+            start, end = match.span()
+            lengths.append(end - start)
+            url_count += sum(1 for _ in _URL_RE.finditer(self.raw_bytes, start, end))
+            registry_count += sum(
+                1 for _ in _REGISTRY_RE.finditer(self.raw_bytes, start, end)
+            )
+            path_count += sum(
+                1 for _ in _WINDOWS_PATH_RE.finditer(self.raw_bytes, start, end)
+            )
+            mz_count += self.raw_bytes.count(b"MZ", start, end)
 
         if lengths:
             log_lengths = [math.log2(max(length, 1)) for length in lengths]
@@ -165,15 +223,14 @@ class _PEFeatureExtractor:
         else:
             hist = np.zeros(10, dtype=np.float32)
 
-        joined = b"\n".join(strings)
         scalars = np.array(
             [
-                len(strings),
+                len(lengths),
                 float(np.mean(lengths)) if lengths else 0.0,
-                len(re.findall(rb"https?://", joined)),
-                len(re.findall(rb"HKEY_|SOFTWARE\\|SYSTEM\\", joined)),
-                len(re.findall(rb"[Cc]:\\|[Ss]ystem32", joined)),
-                len(re.findall(rb"MZ", joined)),
+                url_count,
+                registry_count,
+                path_count,
+                mz_count,
                 min(lengths) if lengths else 0,
                 max(lengths) if lengths else 0,
                 float(np.std(lengths)) if lengths else 0,
@@ -187,7 +244,7 @@ class _PEFeatureExtractor:
     def _general_file_info(self) -> np.ndarray:
         file_size = len(self.raw_bytes)
         try:
-            sections = list(self.lief.sections)
+            sections = self.sections
             virtual_size = sum(getattr(section, "virtual_size", 0) for section in sections)
             return np.array(
                 [
@@ -200,7 +257,7 @@ class _PEFeatureExtractor:
                     int(getattr(self.lief, "has_signatures", False)),
                     int(getattr(self.lief, "has_relocations", False)),
                     int(getattr(self.lief, "has_exports", False)),
-                    len(list(self.lief.imports)) if getattr(self.lief, "has_imports", False) else 0,
+                    len(self.imports) if getattr(self.lief, "has_imports", False) else 0,
                 ],
                 dtype=np.float32,
             )
@@ -254,16 +311,11 @@ class _PEFeatureExtractor:
 
     def _section_info(self) -> np.ndarray:
         try:
-            sections = list(self.lief.sections)
+            sections = self.sections
         except Exception:
             return np.zeros(255, dtype=np.float32)
 
-        known_names = [
-            ".text", ".data", ".rdata", ".rsrc", ".reloc", ".bss",
-            ".idata", ".edata", ".pdata", ".xdata", ".tls", ".sxdata",
-            "UPX0", "UPX1", "UPX2", ".themida", ".vmp0", ".vmp1",
-        ]
-        name_presence = np.zeros(len(known_names), dtype=np.float32)
+        name_presence = np.zeros(len(_KNOWN_SECTION_INDEX), dtype=np.float32)
         entropies = []
         sizes = []
         exec_sections = 0
@@ -271,9 +323,9 @@ class _PEFeatureExtractor:
 
         for section in sections:
             section_name = section.name.rstrip("\x00")
-            for index, known_name in enumerate(known_names):
-                if section_name == known_name:
-                    name_presence[index] = 1.0
+            index = _KNOWN_SECTION_INDEX.get(section_name)
+            if index is not None:
+                name_presence[index] = 1.0
 
             raw = bytes(section.content)
             entropies.append(_entropy(np.frombuffer(raw, dtype=np.uint8)) if raw else 0.0)
@@ -316,11 +368,11 @@ class _PEFeatureExtractor:
         try:
             dll_names: list[str] = []
             api_names: list[str] = []
-            for imported_library in self.lief.imports:
+            for imported_library in self.imports:
                 dll_names.append(imported_library.name.lower())
                 for entry in imported_library.entries:
                     if entry.name:
-                        api_names.append(entry.name)
+                        api_names.append(entry.name.lower())
 
             suspicious_apis = [
                 "CreateRemoteThread", "VirtualAllocEx", "WriteProcessMemory",
@@ -341,7 +393,7 @@ class _PEFeatureExtractor:
                     _hash_encode(api_names, 512),
                     np.array(
                         [
-                            1.0 if any(api.lower() in name.lower() for name in api_names) else 0.0
+                            1.0 if any(api.lower() in name for name in api_names) else 0.0
                             for api in suspicious_apis
                         ],
                         dtype=np.float32,
@@ -397,8 +449,8 @@ def _extract_printable_strings(data: bytes, min_length: int = 5) -> list[bytes]:
 def _hash_encode(names: list[str], n_features: int = 512) -> np.ndarray:
     vec = np.zeros(n_features, dtype=np.float32)
     for name in names:
-        digest = hashlib.sha256(name.lower().encode("utf-8", errors="ignore")).hexdigest()
-        vec[int(digest, 16) % n_features] = 1.0
+        digest = hashlib.sha256(name.lower().encode("utf-8", errors="ignore")).digest()
+        vec[int.from_bytes(digest, "big") % n_features] = 1.0
     return vec
 
 

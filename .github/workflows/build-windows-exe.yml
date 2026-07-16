@@ -184,30 +184,34 @@ jobs:
             Remove-Item anti_pe_scanner.spec -Force
           }
 
-      - name: Build Windows executable
+      - name: Build Windows onefile and onedir packages
         shell: pwsh
         env:
           PYTHONPATH: src
         run: |
           $ErrorActionPreference = "Stop"
 
-          python tools\build_exe.py
+          python tools\build_exe.py --variant both
 
       - name: Verify EXE and handover package
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
 
-          if (!(Test-Path "dist\anti_pe_scanner.exe")) {
-            throw "Windows EXE was not created: dist\anti_pe_scanner.exe"
+          if (!(Test-Path "dist\onefile\anti_pe_scanner.exe")) {
+            throw "onefile EXE was not created"
           }
 
-          if (!(Test-Path "dist\models\lightgbm_pe_v1\model.txt")) {
-            throw "Model file was not copied into dist\models\lightgbm_pe_v1"
+          if (!(Test-Path "dist\onedir\anti_pe_scanner\anti_pe_scanner.exe")) {
+            throw "onedir EXE was not created"
           }
 
-          if (!(Test-Path "dist\configs\policy.json")) {
-            throw "Policy file was not copied into dist\configs"
+          if (!(Test-Path "dist\onedir\anti_pe_scanner\models\lightgbm_pe_v1\model.txt")) {
+            throw "Model file was not copied into onedir package"
+          }
+
+          if (!(Test-Path "dist\onefile\configs\policy.json")) {
+            throw "Policy file was not copied into onefile package"
           }
 
           Write-Host "Final dist tree:"
@@ -220,7 +224,7 @@ jobs:
 
           "hello this is not a PE file" | Out-File -Encoding utf8 smoke_test.txt
 
-          $output = .\dist\anti_pe_scanner.exe --file smoke_test.txt
+          $output = .\dist\onedir\anti_pe_scanner\anti_pe_scanner.exe --file smoke_test.txt
           Write-Host $output
 
           $json = $output | ConvertFrom-Json

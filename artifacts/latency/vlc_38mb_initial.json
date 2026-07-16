@@ -1,0 +1,87 @@
+{
+  "benchmark_file": {
+    "path": "/home/raghavd/anti-pe-lightgbm-agent-scanner/samples/large/vlc-3.0.23-win64.exe",
+    "size_bytes": 45948080
+  },
+  "last_scan": {
+    "scan_status": "success",
+    "score": 0.11559487189052418,
+    "verdict": "allow"
+  },
+  "notes": [
+    "Warm end-to-end latency is the main per-file production number when the scanner process is already running.",
+    "Startup/model-load latency is separate and matters when a new process is launched for every file.",
+    "Stage values do not necessarily add up exactly to end-to-end latency.",
+    "The current scanner may hash a valid PE twice and LIEF may parse it during both validation and feature extraction."
+  ],
+  "stage_measurements": {
+    "feature_extraction": {
+      "max_ms": 3313.959,
+      "mean_ms": 3160.973,
+      "median_p50_ms": 3080.03,
+      "min_ms": 3057.971,
+      "p95_ms": 3307.825,
+      "p99_ms": 3312.732,
+      "runs": 5,
+      "stddev_ms": 113.025,
+      "throughput_files_per_sec_from_mean": 0.316
+    },
+    "json_serialization_only": {
+      "max_ms": 0.066,
+      "mean_ms": 0.012,
+      "median_p50_ms": 0.011,
+      "min_ms": 0.011,
+      "p95_ms": 0.013,
+      "p99_ms": 0.02,
+      "runs": 100,
+      "stddev_ms": 0.006,
+      "throughput_files_per_sec_from_mean": 83028.343
+    },
+    "lightgbm_predict_only": {
+      "max_ms": 23.715,
+      "mean_ms": 0.532,
+      "median_p50_ms": 0.114,
+      "min_ms": 0.097,
+      "p95_ms": 1.122,
+      "p99_ms": 6.294,
+      "runs": 100,
+      "stddev_ms": 2.496,
+      "throughput_files_per_sec_from_mean": 1880.353
+    },
+    "pe_validation": {
+      "max_ms": 43.36,
+      "mean_ms": 38.885,
+      "median_p50_ms": 37.331,
+      "min_ms": 36.708,
+      "p95_ms": 42.641,
+      "p99_ms": 43.216,
+      "runs": 5,
+      "stddev_ms": 2.474,
+      "throughput_files_per_sec_from_mean": 25.717
+    },
+    "sha256_one_pass": {
+      "max_ms": 25.801,
+      "mean_ms": 25.4,
+      "median_p50_ms": 25.287,
+      "min_ms": 25.188,
+      "p95_ms": 25.746,
+      "p99_ms": 25.79,
+      "runs": 5,
+      "stddev_ms": 0.235,
+      "throughput_files_per_sec_from_mean": 39.371
+    }
+  },
+  "startup_model_load_ms": 131.38,
+  "warm_end_to_end_scan": {
+    "max_ms": 3247.712,
+    "mean_ms": 3194.439,
+    "median_p50_ms": 3198.334,
+    "min_ms": 3153.646,
+    "p95_ms": 3239.807,
+    "p99_ms": 3246.131,
+    "runs": 5,
+    "stddev_ms": 33.507,
+    "throughput_files_per_sec_from_mean": 0.313
+  },
+  "warmup_runs_excluded": 2
+}

@@ -1,0 +1,260 @@
+{
+  "benchmark_file": {
+    "architecture": "MACHINE_TYPES.I386",
+    "lief_parse_status": "success",
+    "name": "vlc-3.0.23-win64-95mb-overlay.exe",
+    "path": "/home/raghavd/anti-pe-lightgbm-agent-scanner/samples/large/vlc-3.0.23-win64-95mb-overlay.exe",
+    "sections": 7,
+    "sha256": "6659ee55daaca8c5c0a175429d3ef65e06b310350b3333bfaee0765f75d874e8",
+    "size_bytes": 99614720,
+    "size_mb": 95.0
+  },
+  "cold_process_end_to_end": {
+    "max_ms": 2859.348,
+    "mean_ms": 2734.014,
+    "min_ms": 2594.469,
+    "p50_ms": 2748.223,
+    "p95_ms": 2848.236,
+    "p99_ms": 2857.126,
+    "runs": 3,
+    "stddev_ms": 108.602
+  },
+  "environment": {
+    "cpu_model": "Intel(R) Core(TM) i9-14900",
+    "feature_version": "ember_feature_version_2",
+    "lief_version": "0.17.6-08dc3b7f",
+    "lightgbm_num_threads": 1,
+    "lightgbm_version": "4.6.0",
+    "model_version": "v1",
+    "numpy_version": "2.5.1",
+    "operating_system": "Linux-6.17.0-40-generic-x86_64-with-glibc2.39",
+    "python_version": "3.12.3",
+    "scanner_version": "0.1.0"
+  },
+  "json_serialization_single_ms": 0.116,
+  "last_scan": {
+    "scan_status": "success",
+    "score": 0.23047213546955497,
+    "verdict": "allow"
+  },
+  "memory": {
+    "memory_after_each_scan_mb": [
+      406.777,
+      406.777,
+      406.867,
+      406.867,
+      406.867,
+      406.867,
+      406.867,
+      406.867,
+      406.867,
+      406.867,
+      406.867,
+      406.867,
+      406.867,
+      406.867,
+      406.867,
+      406.867,
+      406.867,
+      406.867,
+      406.867,
+      406.867
+    ],
+    "note": "ru_maxrss is a high-water mark, not instantaneous RSS.",
+    "peak_growth_first_to_last_mb": 0.09,
+    "peak_process_memory_mb": 406.867
+  },
+  "warm_stages": {
+    "byte_entropy_histogram_ms": {
+      "max_ms": 1155.578,
+      "mean_ms": 1055.464,
+      "min_ms": 1024.879,
+      "p50_ms": 1051.296,
+      "p95_ms": 1097.422,
+      "p99_ms": 1143.946,
+      "runs": 20,
+      "stddev_ms": 27.7
+    },
+    "byte_histogram_ms": {
+      "max_ms": 169.955,
+      "mean_ms": 157.822,
+      "min_ms": 152.053,
+      "p50_ms": 157.665,
+      "p95_ms": 164.702,
+      "p99_ms": 168.904,
+      "runs": 20,
+      "stddev_ms": 4.588
+    },
+    "complete_feature_extraction_ms": {
+      "max_ms": 2391.926,
+      "mean_ms": 2225.393,
+      "min_ms": 2175.578,
+      "p50_ms": 2216.069,
+      "p95_ms": 2306.432,
+      "p99_ms": 2374.827,
+      "runs": 20,
+      "stddev_ms": 48.877
+    },
+    "data_directory_features_ms": {
+      "max_ms": 0.071,
+      "mean_ms": 0.017,
+      "min_ms": 0.013,
+      "p50_ms": 0.014,
+      "p95_ms": 0.018,
+      "p99_ms": 0.06,
+      "runs": 20,
+      "stddev_ms": 0.012
+    },
+    "export_features_ms": {
+      "max_ms": 0.002,
+      "mean_ms": 0.001,
+      "min_ms": 0.001,
+      "p50_ms": 0.001,
+      "p95_ms": 0.002,
+      "p99_ms": 0.002,
+      "runs": 20,
+      "stddev_ms": 0.0
+    },
+    "file_read_ms": {
+      "max_ms": 49.633,
+      "mean_ms": 30.974,
+      "min_ms": 28.673,
+      "p50_ms": 30.229,
+      "p95_ms": 32.051,
+      "p99_ms": 46.117,
+      "runs": 20,
+      "stddev_ms": 4.331
+    },
+    "file_stat_ms": {
+      "max_ms": 0.085,
+      "mean_ms": 0.024,
+      "min_ms": 0.018,
+      "p50_ms": 0.02,
+      "p95_ms": 0.029,
+      "p99_ms": 0.074,
+      "runs": 20,
+      "stddev_ms": 0.014
+    },
+    "general_features_ms": {
+      "max_ms": 0.073,
+      "mean_ms": 0.021,
+      "min_ms": 0.015,
+      "p50_ms": 0.018,
+      "p95_ms": 0.029,
+      "p99_ms": 0.064,
+      "runs": 20,
+      "stddev_ms": 0.012
+    },
+    "header_features_ms": {
+      "max_ms": 0.048,
+      "mean_ms": 0.036,
+      "min_ms": 0.03,
+      "p50_ms": 0.034,
+      "p95_ms": 0.045,
+      "p99_ms": 0.048,
+      "runs": 20,
+      "stddev_ms": 0.004
+    },
+    "header_validation_ms": {
+      "max_ms": 0.012,
+      "mean_ms": 0.009,
+      "min_ms": 0.007,
+      "p50_ms": 0.008,
+      "p95_ms": 0.011,
+      "p99_ms": 0.012,
+      "runs": 20,
+      "stddev_ms": 0.001
+    },
+    "import_features_ms": {
+      "max_ms": 0.392,
+      "mean_ms": 0.309,
+      "min_ms": 0.281,
+      "p50_ms": 0.298,
+      "p95_ms": 0.381,
+      "p99_ms": 0.39,
+      "runs": 20,
+      "stddev_ms": 0.031
+    },
+    "lief_parse_ms": {
+      "max_ms": 36.616,
+      "mean_ms": 35.54,
+      "min_ms": 34.409,
+      "p50_ms": 35.645,
+      "p95_ms": 36.433,
+      "p99_ms": 36.579,
+      "runs": 20,
+      "stddev_ms": 0.615
+    },
+    "model_inference_ms": {
+      "max_ms": 0.663,
+      "mean_ms": 0.481,
+      "min_ms": 0.351,
+      "p50_ms": 0.487,
+      "p95_ms": 0.589,
+      "p99_ms": 0.648,
+      "runs": 20,
+      "stddev_ms": 0.083
+    },
+    "section_features_ms": {
+      "max_ms": 0.839,
+      "mean_ms": 0.538,
+      "min_ms": 0.415,
+      "p50_ms": 0.529,
+      "p95_ms": 0.708,
+      "p99_ms": 0.812,
+      "runs": 20,
+      "stddev_ms": 0.106
+    },
+    "sha256_ms": {
+      "max_ms": 51.723,
+      "mean_ms": 44.081,
+      "min_ms": 40.659,
+      "p50_ms": 43.583,
+      "p95_ms": 49.16,
+      "p99_ms": 51.21,
+      "runs": 20,
+      "stddev_ms": 2.603
+    },
+    "string_features_ms": {
+      "max_ms": 1079.34,
+      "mean_ms": 1011.095,
+      "min_ms": 973.212,
+      "p50_ms": 1004.526,
+      "p95_ms": 1068.708,
+      "p99_ms": 1077.214,
+      "runs": 20,
+      "stddev_ms": 26.505
+    },
+    "total_scan_ms": {
+      "max_ms": 2499.91,
+      "mean_ms": 2336.667,
+      "min_ms": 2285.849,
+      "p50_ms": 2325.532,
+      "p95_ms": 2416.712,
+      "p99_ms": 2483.271,
+      "runs": 20,
+      "stddev_ms": 48.428
+    },
+    "verdict_ms": {
+      "max_ms": 0.006,
+      "mean_ms": 0.004,
+      "min_ms": 0.003,
+      "p50_ms": 0.004,
+      "p95_ms": 0.004,
+      "p99_ms": 0.005,
+      "runs": 20,
+      "stddev_ms": 0.001
+    },
+    "verdict_policy_merge_ms": {
+      "max_ms": 0.035,
+      "mean_ms": 0.015,
+      "min_ms": 0.012,
+      "p50_ms": 0.014,
+      "p95_ms": 0.018,
+      "p99_ms": 0.032,
+      "runs": 20,
+      "stddev_ms": 0.005
+    }
+  },
+  "warmup_runs_excluded": 3
+}

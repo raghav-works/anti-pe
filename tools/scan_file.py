@@ -13,6 +13,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from anti_pe_scanner.scanner import PEMalwareScanner  # noqa: E402
+from anti_pe_scanner.server import run_jsonl_server  # noqa: E402
 from anti_pe_scanner.utils import safe_json_dumps  # noqa: E402
 
 try:
@@ -26,6 +27,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     target = parser.add_mutually_exclusive_group(required=True)
     target.add_argument("--file", help="File path to scan once.")
     target.add_argument("--watch-dir", help="Directory to monitor continuously.")
+    target.add_argument("--server", action="store_true", help="Run persistent JSONL worker.")
     parser.add_argument(
         "--model-package",
         default="models/lightgbm_pe_v1",
@@ -34,6 +36,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--policy", default=None, help="Optional policy JSON path.")
     parser.add_argument("--pretty", action="store_true", help="Pretty-print JSON output.")
     parser.add_argument("--recursive", action="store_true", help="Watch directories recursively.")
+    parser.add_argument("--cache-size", type=int, default=0, help="Successful-result LRU entries.")
+    parser.add_argument(
+        "--num-threads",
+        type=int,
+        default=1,
+        help="LightGBM threads for single-row prediction; use 0 for library default.",
+    )
     return parser.parse_args(argv)
 
 
@@ -55,6 +64,8 @@ def main(argv: list[str] | None = None) -> int:
         scanner = PEMalwareScanner(
             resolve_runtime_path(args.model_package),
             policy_path=resolve_runtime_path(args.policy),
+            cache_size=args.cache_size,
+            num_threads=None if args.num_threads == 0 else args.num_threads,
         )
     except Exception as exc:
         print(f"Scanner setup failed: {exc}", file=sys.stderr)
@@ -64,6 +75,9 @@ def main(argv: list[str] | None = None) -> int:
         event = scanner.scan_file(args.file)
         print(safe_json_dumps(event, pretty=args.pretty))
         return 0
+
+    if args.server:
+        return run_jsonl_server(scanner, sys.stdin, sys.stdout, sys.stderr)
 
     run_watch_dir(args.watch_dir, scanner=scanner, recursive=args.recursive, pretty=args.pretty)
     return 0

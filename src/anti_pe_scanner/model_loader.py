@@ -21,8 +21,9 @@ EXPECTED_FEATURE_DIM = 2381
 
 
 class LightGBMModelPackage:
-    def __init__(self, model_package_path: str | Path):
+    def __init__(self, model_package_path: str | Path, num_threads: int | None = 1):
         self.model_package_path = Path(model_package_path)
+        self.num_threads = num_threads
         self.model = None
         self.metadata: dict[str, Any] | None = None
         self.thresholds: dict[str, Any] | None = None
@@ -54,7 +55,8 @@ class LightGBMModelPackage:
             raise RuntimeError("Model package is not loaded. Call load() before predict_score().")
 
         feature_array = self._coerce_features(features)
-        prediction = self.model.predict(feature_array)
+        kwargs = {"num_threads": self.num_threads} if self.num_threads is not None else {}
+        prediction = self.model.predict(feature_array, **kwargs)
         return float(np.asarray(prediction).reshape(-1)[0])
 
     @staticmethod
