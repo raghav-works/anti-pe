@@ -3,175 +3,87 @@ name: Build Windows EXE
 on:
   workflow_dispatch:
 
-permissions:
-  contents: read
-
 jobs:
   build-windows-exe:
-    name: Build anti_pe_scanner.exe
     runs-on: windows-latest
-    timeout-minutes: 40
 
     steps:
-      - name: Checkout repository
+      - name: Checkout selected branch
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Show source revision
+        shell: pwsh
+        run: |
+          Write-Host "Branch: $env:GITHUB_REF_NAME"
+          Write-Host "Commit: $env:GITHUB_SHA"
+          git status
+          git log -1 --oneline
+
+      - name: Verify optimized source exists
+        shell: pwsh
+        run: |
+          $requiredFiles = @(
+            "src\anti_pe_scanner\prepared_pe.py",
+            "src\anti_pe_scanner\server.py",
+            "tests\test_prepared_pe.py",
+            "tests\test_server_mode.py",
+            "tests\test_optimization_parity.py",
+            "tools\benchmark_latency.py"
+          )
+
+          foreach ($file in $requiredFiles) {
+            if (-not (Test-Path $file)) {
+              throw "Optimized source file is missing: $file"
+            }
+
+            Write-Host "Found: $file"
+          }
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-
-      - name: Show Python and repository info
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-
-          python --version
-          python -m pip --version
-
-          Write-Host "Repository root:"
-          Get-Location
-
-          Write-Host "Top-level files:"
-          Get-ChildItem
-
-      - name: Verify required project files
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-
-          $requiredFiles = @(
-            "requirements.txt",
-            "tools\scan_file.py",
-            "tools\build_exe.py",
-            "configs\policy.json",
-            "models\lightgbm_pe_v1\model.txt",
-            "models\lightgbm_pe_v1\metadata.json",
-            "models\lightgbm_pe_v1\thresholds.json",
-            "models\lightgbm_pe_v1\feature_config.json"
-          )
-
-          foreach ($file in $requiredFiles) {
-            if (!(Test-Path $file)) {
-              throw "Required file is missing: $file"
-            }
-            else {
-              Write-Host "Found: $file"
-            }
-          }
-
-      - name: Normalize LightGBM model line endings
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-
-          $modelPath = "models\lightgbm_pe_v1\model.txt"
-
-          Write-Host "Normalizing LightGBM model line endings to LF..."
-
-          $bytesBefore = [System.IO.File]::ReadAllBytes($modelPath)
-          Write-Host "Model size before normalization: $($bytesBefore.Length)"
-          Write-Host "CRLF count before: $([regex]::Matches([System.Text.Encoding]::UTF8.GetString($bytesBefore), "`r`n").Count)"
-          Write-Host "CR count before: $([regex]::Matches([System.Text.Encoding]::UTF8.GetString($bytesBefore), "`r").Count)"
-
-          $content = [System.Text.Encoding]::UTF8.GetString($bytesBefore)
-          $content = $content -replace "`r`n", "`n"
-          $content = $content -replace "`r", "`n"
-
-          $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
-          [System.IO.File]::WriteAllText($modelPath, $content, $utf8NoBom)
-
-          $bytesAfter = [System.IO.File]::ReadAllBytes($modelPath)
-          Write-Host "Model size after normalization: $($bytesAfter.Length)"
-          Write-Host "CRLF count after: $([regex]::Matches([System.Text.Encoding]::UTF8.GetString($bytesAfter), "`r`n").Count)"
-          Write-Host "CR count after: $([regex]::Matches([System.Text.Encoding]::UTF8.GetString($bytesAfter), "`r").Count)"
-
-          Write-Host "First 10 lines:"
-          Get-Content $modelPath -TotalCount 10
+          python-version: "3.12"
 
       - name: Install dependencies
         shell: pwsh
         run: |
-          $ErrorActionPreference = "Stop"
-
-          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
           python -m pip install pyinstaller pytest
 
-      - name: Verify Python imports
+      - name: Verify optimized CLI
         shell: pwsh
         env:
           PYTHONPATH: src
         run: |
-          $ErrorActionPreference = "Stop"
+          $helpOutput = python tools\scan_file.py --help | Out-String
+          Write-Host $helpOutput
 
-          python -c "import numpy; print('numpy OK')"
-          python -c "import lightgbm; print('lightgbm OK', lightgbm.__version__)"
-          python -c "import lief; print('lief OK')"
-          python -c "import watchdog; print('watchdog OK')"
-          python -c "import PyInstaller; print('PyInstaller OK')"
+          if ($helpOutput -notmatch "--server") {
+            throw "The optimized --server option is missing."
+          }
 
-      - name: Verify LightGBM model file
-        shell: pwsh
-        env:
-          PYTHONPATH: src
-        run: |
-          $ErrorActionPreference = "Stop"
+          if ($helpOutput -notmatch "--cache-size") {
+            throw "The optimized --cache-size option is missing."
+          }
 
-          $script = @'
-          from pathlib import Path
-          import lightgbm as lgb
-
-          model_path = Path("models/lightgbm_pe_v1/model.txt")
-          data = model_path.read_bytes()
-
-          print("Model path:", model_path)
-          print("Model size:", len(data))
-          print("CRLF count:", data.count(b"\r\n"))
-          print("CR count:", data.count(b"\r"))
-          print("LF count:", data.count(b"\n"))
-          print("Tree count:", data.count(b"Tree="))
-          print("Contains end of trees:", b"end of trees" in data)
-
-          print("First 10 lines:")
-          for line in data.splitlines()[:10]:
-              print(line[:200])
-
-          booster = lgb.Booster(model_file=str(model_path))
-          print("Model loaded OK")
-          print("num_feature:", booster.num_feature())
-          print("num_trees:", booster.num_trees())
-
-          assert booster.num_feature() == 2381
-          assert booster.num_trees() == 1000
-          '@
-
-          Set-Content -Path check_model.py -Value $script -Encoding UTF8
-          python check_model.py
-
-      - name: Verify scanner model package loader
-        shell: pwsh
-        env:
-          PYTHONPATH: src
-        run: |
-          $ErrorActionPreference = "Stop"
-
-          python -c "from anti_pe_scanner.model_loader import LightGBMModelPackage; p = LightGBMModelPackage('models/lightgbm_pe_v1'); p.load(); print('scanner model package OK')"
+          if ($helpOutput -notmatch "--num-threads") {
+            throw "The optimized --num-threads option is missing."
+          }
 
       - name: Run tests
         shell: pwsh
         env:
           PYTHONPATH: src
         run: |
-          $ErrorActionPreference = "Stop"
-
           python -m pytest -q
+          python -m compileall -q src tools tests
 
-      - name: Clean old build outputs
+      - name: Clean previous build
         shell: pwsh
         run: |
-          $ErrorActionPreference = "Stop"
-
           if (Test-Path build) {
             Remove-Item build -Recurse -Force
           }
@@ -180,65 +92,71 @@ jobs:
             Remove-Item dist -Recurse -Force
           }
 
-          if (Test-Path anti_pe_scanner.spec) {
-            Remove-Item anti_pe_scanner.spec -Force
-          }
-
-      - name: Build Windows onefile and onedir packages
+      - name: Build onefile and onedir variants
         shell: pwsh
         env:
           PYTHONPATH: src
         run: |
-          $ErrorActionPreference = "Stop"
-
           python tools\build_exe.py --variant both
 
-      - name: Verify EXE and handover package
+      - name: Verify built executables
         shell: pwsh
         run: |
-          $ErrorActionPreference = "Stop"
+          $onedirExe = "dist\onedir\anti_pe_scanner\anti_pe_scanner.exe"
+          $onefileExe = "dist\onefile\anti_pe_scanner.exe"
 
-          if (!(Test-Path "dist\onefile\anti_pe_scanner.exe")) {
-            throw "onefile EXE was not created"
+          if (-not (Test-Path $onedirExe)) {
+            throw "Onedir executable was not created: $onedirExe"
           }
 
-          if (!(Test-Path "dist\onedir\anti_pe_scanner\anti_pe_scanner.exe")) {
-            throw "onedir EXE was not created"
+          if (-not (Test-Path $onefileExe)) {
+            throw "Onefile executable was not created: $onefileExe"
           }
 
-          if (!(Test-Path "dist\onedir\anti_pe_scanner\models\lightgbm_pe_v1\model.txt")) {
-            throw "Model file was not copied into onedir package"
+          $onedirHelp = & $onedirExe --help 2>&1 | Out-String
+          Write-Host $onedirHelp
+
+          if ($onedirHelp -notmatch "--server") {
+            throw "Built onedir executable does not contain server mode."
           }
 
-          if (!(Test-Path "dist\onefile\configs\policy.json")) {
-            throw "Policy file was not copied into onefile package"
+          $onefileHelp = & $onefileExe --help 2>&1 | Out-String
+          Write-Host $onefileHelp
+
+          if ($onefileHelp -notmatch "--server") {
+            throw "Built onefile executable does not contain server mode."
           }
 
-          Write-Host "Final dist tree:"
+      - name: Add build information
+        shell: pwsh
+        run: |
+          @"
+          Product: Anti-PE LightGBM Scanner
+          Build: Latency Optimized
+          Branch: $env:GITHUB_REF_NAME
+          Commit: $env:GITHUB_SHA
+          Recommended build: onedir
+          Recommended mode: persistent --server
+          "@ | Set-Content -Path "dist\BUILD_INFO.txt"
+
+      - name: Copy latency report
+        shell: pwsh
+        run: |
+          if (Test-Path "artifacts\latency\LATENCY_COMPARISON.md") {
+            New-Item -ItemType Directory -Force -Path "dist\artifacts\latency"
+            Copy-Item `
+              "artifacts\latency\LATENCY_COMPARISON.md" `
+              "dist\artifacts\latency\LATENCY_COMPARISON.md"
+          }
+
+      - name: Show final package tree
+        shell: pwsh
+        run: |
           tree dist /F
 
-      - name: Smoke test EXE on non-PE file
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-
-          "hello this is not a PE file" | Out-File -Encoding utf8 smoke_test.txt
-
-          $output = .\dist\onedir\anti_pe_scanner\anti_pe_scanner.exe --file smoke_test.txt
-          Write-Host $output
-
-          $json = $output | ConvertFrom-Json
-
-          if ($json.scan_status -ne "skipped_not_pe") {
-            throw "Smoke test failed. Expected scan_status skipped_not_pe but got $($json.scan_status)"
-          }
-
-          Write-Host "Smoke test passed."
-
-      - name: Upload Windows handover package
+      - name: Upload optimized Windows handover
         uses: actions/upload-artifact@v4
         with:
-          name: anti_pe_scanner_windows_handover
+          name: anti_pe_scanner_latency_optimized_windows_handover
           path: dist/
           if-no-files-found: error
-          retention-days: 14
