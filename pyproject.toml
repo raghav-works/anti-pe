@@ -12,6 +12,7 @@ dependencies = [
   "lightgbm",
   "numpy",
   "lief",
+  "scikit-learn",
   "watchdog",
 ]
 
@@ -23,4 +24,3 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
-

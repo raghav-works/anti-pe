@@ -55,6 +55,8 @@ def _build_variant(variant: str) -> None:
         str(PROJECT_ROOT / "src"),
         "--paths",
         str(PROJECT_ROOT / "tools"),
+        "--hidden-import",
+        "sklearn.feature_extraction._hash",
         str(PROJECT_ROOT / "tools" / "scan_file.py"),
     ]
 

@@ -16,8 +16,11 @@ import numpy as np
 
 from anti_pe_scanner.policy import validate_policy
 from anti_pe_scanner.schemas import PolicyConfig
+from anti_pe_scanner.ember_v2_features import EMBER_V2_DIM
 
-EXPECTED_FEATURE_DIM = 2381
+EXPECTED_FEATURE_DIM = EMBER_V2_DIM
+EXPECTED_FEATURE_VERSION = "ember_feature_version_2"
+EXPECTED_EXTRACTOR_SEMANTICS = "official_elastic_ember_v2"
 
 
 class LightGBMModelPackage:
@@ -49,6 +52,12 @@ class LightGBMModelPackage:
         import lightgbm
 
         self.model = lightgbm.Booster(model_file=str(model_path))
+        model_features = self.model.num_feature()
+        if model_features != EXPECTED_FEATURE_DIM:
+            raise ValueError(
+                f"model.txt expects {model_features} features; "
+                f"extractor requires {EXPECTED_FEATURE_DIM}"
+            )
 
     def predict_score(self, features) -> float:
         if self.model is None:
@@ -89,6 +98,20 @@ class LightGBMModelPackage:
                 f"feature_config.json feature_dim must be {EXPECTED_FEATURE_DIM}, "
                 f"got {feature_config_dim!r}"
             )
+        for source_name, source in (
+            ("metadata.json", self.metadata),
+            ("feature_config.json", self.feature_config),
+        ):
+            if source.get("feature_version") != EXPECTED_FEATURE_VERSION:
+                raise ValueError(
+                    f"{source_name} feature_version must be "
+                    f"{EXPECTED_FEATURE_VERSION!r}"
+                )
+            if source.get("extractor_semantics") != EXPECTED_EXTRACTOR_SEMANTICS:
+                raise ValueError(
+                    f"{source_name} extractor_semantics must be "
+                    f"{EXPECTED_EXTRACTOR_SEMANTICS!r}"
+                )
 
         validate_policy(
             PolicyConfig(

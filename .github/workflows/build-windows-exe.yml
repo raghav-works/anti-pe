@@ -108,6 +108,7 @@ jobs:
           python -c "import numpy; print('numpy OK')"
           python -c "import lightgbm; print('lightgbm OK', lightgbm.__version__)"
           python -c "import lief; print('lief OK')"
+          python -c "import sklearn; print('scikit-learn OK', sklearn.__version__)"
           python -c "import watchdog; print('watchdog OK')"
           python -c "import PyInstaller; print('PyInstaller OK')"
 

@@ -1,8 +1,12 @@
 {
   "feature_dim": 2381,
   "feature_version": "ember_feature_version_2",
+  "extractor_semantics": "official_elastic_ember_v2",
+  "official_ember_commit": "d97a0b523de02f3fe5ea6089d080abacab6ee931",
+  "reference_lief_version": "0.9.0",
+  "runtime_lief_version": "0.17.6-08dc3b7f",
+  "feature_parity_verified": false,
   "requires_valid_pe": true,
-  "extractor_source": "Anti_PE ((2))/features/extractor.py",
-  "warning": "The inference feature extractor must preserve the same 2381-feature order expected by the trained model."
+  "extractor_source": "src/anti_pe_scanner/ember_v2_features.py",
+  "warning": "Golden parity against LIEF 0.9.0 has not yet been verified."
 }
-

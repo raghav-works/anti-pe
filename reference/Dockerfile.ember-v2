@@ -1,0 +1,7 @@
+FROM python:3.7-slim
+WORKDIR /reference
+COPY reference/requirements-ember-v2-reference.txt .
+RUN pip install --no-cache-dir -r requirements-ember-v2-reference.txt
+COPY reference/generate_golden_vectors.py .
+ENTRYPOINT ["python", "generate_golden_vectors.py"]
+
